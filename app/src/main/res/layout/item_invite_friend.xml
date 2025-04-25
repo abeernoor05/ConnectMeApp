@@ -1,0 +1,32 @@
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="horizontal"
+    android:padding="10dp"
+    android:gravity="center_vertical">
+
+    <ImageView
+        android:id="@+id/inviteProfileImage"
+        android:layout_width="40dp"
+        android:layout_height="40dp"
+        android:src="@drawable/profile_placeholder"
+        android:scaleType="centerCrop"
+        android:background="@drawable/circle_shape"
+        android:clipToOutline="true"
+        android:layout_marginEnd="10dp"/>
+
+    <TextView
+        android:id="@+id/inviteFriendName"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Friend Name"
+        android:textSize="16sp"
+        android:layout_weight="1"/>
+
+    <Button
+        android:id="@+id/inviteButton"
+        android:layout_width="90dp"
+        android:layout_height="45dp"
+        android:backgroundTint="#533F2C"
+        android:text="Invite"/>
+</LinearLayout>

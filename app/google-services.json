@@ -1,0 +1,30 @@
+{
+  "project_info": {
+    "project_number": "1003521461293",
+    "firebase_url": "https://connectme-3c7a6-default-rtdb.firebaseio.com",
+    "project_id": "connectme-3c7a6",
+    "storage_bucket": "connectme-3c7a6.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1003521461293:android:edd942a0c808b2cd96bca4",
+        "android_client_info": {
+          "package_name": "com.abeernoor.i221122"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBkXOKB1hc997zRQZJAcuLd28tNHprmD4A"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

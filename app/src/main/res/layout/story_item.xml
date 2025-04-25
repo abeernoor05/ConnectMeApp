@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:padding="5dp"
+    tools:ignore="ExtraText">
+
+    <ImageView
+        android:id="@+id/story_image"
+        android:layout_width="60dp"
+        android:layout_height="60dp"
+        android:scaleType="centerCrop"
+        android:background="@drawable/circle_shape"
+        android:clipToOutline="true" />
+
+    <ImageView
+        android:id="@+id/plusIcon"
+        android:layout_width="20dp"
+        android:layout_height="20dp"
+        android:src="@drawable/add"
+        android:layout_alignBottom="@id/story_image"
+        android:layout_alignEnd="@id/story_image"
+        android:background="@drawable/circle_shape"
+        android:clipToOutline="true"
+        android:visibility="gone" />
+
+    <View
+        android:id="@+id/statusDot"
+        android:layout_width="12dp"
+        android:layout_height="12dp"
+        android:background="@drawable/status_dot_background"
+        android:layout_alignBottom="@id/story_image"
+        android:layout_alignStart="@id/story_image"
+        android:layout_marginStart="4dp"
+        android:layout_marginBottom="4dp" />
+
+    <TextView
+        android:id="@+id/storyUsername"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_below="@id/story_image"
+        android:layout_centerHorizontal="true"
+        android:textSize="12sp"
+        android:text="Username" />
+
+</RelativeLayout>

@@ -1,0 +1,104 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/white"
+    android:padding="16dp">
+
+    <RelativeLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:padding="10dp">
+
+        <ImageView
+            android:id="@+id/close"
+            android:layout_width="24dp"
+            android:layout_height="24dp"
+            android:src="@drawable/close"
+            android:background="@null"
+            android:clickable="true"
+            android:layout_alignParentStart="true"/>
+
+        <TextView
+            android:id="@+id/tvNewPost"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="New Post"
+            android:textSize="18sp"
+            android:textStyle="bold"
+            android:layout_centerHorizontal="true"/>
+
+        <TextView
+            android:id="@+id/btnNext"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Next"
+            android:textSize="16sp"
+            android:textColor="@color/black"
+            android:textStyle="bold"
+            android:layout_alignParentEnd="true"/>
+    </RelativeLayout>
+
+    <ImageView
+        android:id="@+id/selectedImage"
+        android:layout_width="280dp"
+        android:layout_height="290dp"
+        android:scaleType="centerCrop"
+        android:src="@drawable/post1"
+        android:layout_centerHorizontal="true"
+        android:layout_below="@id/tvNewPost"
+        android:layout_marginTop="50dp"
+        tools:ignore="NotSibling" />
+
+    <RelativeLayout
+        android:id="@+id/recentSection"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_below="@id/selectedImage"
+        android:layout_marginTop="20dp">
+
+        <TextView
+            android:id="@+id/tvRecent"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Recent"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            android:textColor="@color/black"
+            android:layout_alignParentStart="true"/>
+
+        <ImageView
+            android:id="@+id/iconArrow"
+            android:layout_width="24dp"
+            android:layout_height="24dp"
+            android:src="@drawable/arrow_forward"
+            android:layout_toEndOf="@id/tvRecent"
+            android:layout_marginStart="10dp"/>
+
+        <ImageView
+            android:id="@+id/iconExtra1"
+            android:layout_width="24dp"
+            android:layout_height="24dp"
+            android:src="@drawable/camera"
+            android:layout_alignParentEnd="true"/>
+
+        <ImageView
+            android:id="@+id/iconExtra2"
+            android:layout_width="24dp"
+            android:layout_height="24dp"
+            android:src="@drawable/coopy"
+            android:layout_toStartOf="@id/iconExtra1"
+            android:layout_marginEnd="15dp"/>
+    </RelativeLayout>
+
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/recyclerView"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:layout_below="@id/recentSection"
+        android:layout_marginTop="10dp"
+        android:scrollbars="vertical"/>
+
+</RelativeLayout>

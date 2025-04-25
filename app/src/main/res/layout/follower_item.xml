@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:padding="10dp">
+
+    <ImageView
+        android:id="@+id/profileImage"
+        android:layout_width="50dp"
+        android:layout_height="50dp"
+        android:src="@drawable/profile_placeholder"
+        android:scaleType="centerCrop"
+        android:background="@drawable/circle_shape"
+        android:clipToOutline="true"/>
+
+    <TextView
+        android:id="@+id/followerName"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Follower Name"
+        android:textSize="16sp"
+        android:textStyle="bold"
+        android:layout_toEndOf="@id/profileImage"
+        android:layout_marginStart="10dp"
+        android:layout_centerVertical="true"/>
+
+    <ImageView
+        android:id="@+id/messageIcon"
+        android:layout_width="30dp"
+        android:layout_height="30dp"
+        android:src="@drawable/message"
+        android:layout_alignParentEnd="true"
+        android:layout_centerVertical="true"
+        android:clickable="true"
+        android:focusable="true"/>
+</RelativeLayout>

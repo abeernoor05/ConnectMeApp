@@ -1,0 +1,112 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#212121">
+
+    <ImageView
+        android:id="@+id/backButton"
+        android:layout_width="24dp"
+        android:layout_height="24dp"
+        android:layout_marginStart="16dp"
+        android:layout_marginTop="16dp"
+        android:src="@drawable/arrow_back_white"
+        android:layout_alignParentStart="true"
+        android:clickable="true"
+        android:focusable="true" />
+
+    <TextView
+        android:id="@+id/chatName"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="abeer noor"
+        android:textSize="18sp"
+        android:textStyle="bold"
+        android:textColor="@color/white"
+        android:layout_marginLeft="40dp"
+        android:layout_marginTop="16dp" />
+
+    <ImageView
+        android:id="@+id/profilePic"
+        android:layout_width="80dp"
+        android:layout_height="80dp"
+        android:layout_centerHorizontal="true"
+        android:layout_marginTop="60dp"
+        android:src="@drawable/post3"
+        android:scaleType="centerCrop"
+        android:clipToOutline="true"
+        android:background="@drawable/circle_shape" />
+
+    <Button
+        android:id="@+id/viewProfileButton"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="View Profile"
+        android:textStyle="bold"
+        android:textColor="@color/white"
+        android:layout_below="@id/profilePic"
+        android:layout_centerHorizontal="true"
+        android:backgroundTint="#4B3E30"
+        android:layout_marginTop="8dp" />
+
+    <TextView
+        android:id="@+id/vanishModeMessage"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="You’ve turned on vanish mode. New messages will disappear in\n24 hours after everyone has seen them."
+        android:textSize="14sp"
+        android:textColor="@color/white"
+        android:padding="10dp"
+        android:gravity="center"
+        android:layout_below="@id/viewProfileButton"
+        android:layout_marginTop="8dp" />
+
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/messagesContainer"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_below="@id/vanishModeMessage"
+        android:layout_above="@id/messageInputContainer"
+        android:layout_marginTop="20dp"
+        android:padding="10dp" />
+
+    <RelativeLayout
+        android:id="@+id/messageInputContainer"
+        android:layout_width="match_parent"
+        android:layout_height="60dp"
+        android:layout_margin="20dp"
+        android:layout_alignParentBottom="true"
+        android:background="@drawable/round_rect"
+        android:padding="10dp">
+
+        <ImageView
+            android:id="@+id/attachMedia"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:src="@drawable/circle_shape"
+            android:layout_alignParentStart="true"
+            android:clickable="true" />
+
+        <EditText
+            android:id="@+id/messageInput"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_toEndOf="@id/attachMedia"
+            android:layout_toStartOf="@id/sendButton"
+            android:hint="Type a message"
+            android:background="@android:color/transparent"
+            android:padding="10dp"
+            android:layout_marginStart="10dp"
+            android:layout_marginEnd="10dp" />
+
+        <ImageView
+            android:id="@+id/sendButton"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:src="@drawable/send"
+            android:layout_alignParentEnd="true"
+            android:clickable="true" />
+    </RelativeLayout>
+</RelativeLayout>

@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="horizontal"
+    android:padding="12dp"
+    android:elevation="4dp"
+    android:layout_margin="8dp">
+
+    <ImageView
+        android:id="@+id/profileImage"
+        android:layout_width="48dp"
+        android:layout_height="48dp"
+        android:src="@drawable/profile_placeholder"
+        android:scaleType="centerCrop"
+        android:layout_marginEnd="12dp"
+        android:background="@drawable/circle_shape"
+        android:clipToOutline="true"/>
+
+    <TextView
+        android:id="@+id/requestUserName"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:text="User Name"
+        android:textSize="16sp"
+        android:textStyle="bold"
+        android:gravity="center_vertical" />
+
+    <ImageView
+        android:id="@+id/acceptRequest"
+        android:layout_width="40dp"
+        android:layout_height="40dp"
+        android:src="@drawable/accept_request"
+        android:padding="8dp"
+        android:contentDescription="Accept Request"
+        android:layout_marginEnd="8dp"
+        android:clickable="true"
+        android:focusable="true" />
+
+    <ImageView
+        android:id="@+id/rejectRequest"
+        android:layout_width="40dp"
+        android:layout_height="40dp"
+        android:src="@drawable/reject_request"
+        android:padding="8dp"
+        android:contentDescription="Reject Request"
+        android:clickable="true"
+        android:focusable="true" />
+</LinearLayout>
