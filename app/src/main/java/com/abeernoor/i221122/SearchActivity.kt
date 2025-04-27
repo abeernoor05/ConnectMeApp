@@ -5,6 +5,7 @@ import android.content.Intent
 import android.os.Bundle
 import android.text.Editable
 import android.text.TextWatcher
+import android.util.Log
 import android.view.KeyEvent
 import android.view.inputmethod.EditorInfo
 import android.widget.EditText
@@ -13,20 +14,17 @@ import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import com.android.volley.Request
+import com.android.volley.toolbox.JsonObjectRequest
+import com.android.volley.toolbox.Volley
 import com.google.android.material.bottomnavigation.BottomNavigationView
-import com.google.firebase.auth.FirebaseAuth
-import com.google.firebase.database.DataSnapshot
-import com.google.firebase.database.DatabaseError
-import com.google.firebase.database.FirebaseDatabase
-import com.google.firebase.database.ValueEventListener
+import org.json.JSONObject
 
 class SearchActivity : AppCompatActivity() {
 
     private lateinit var searchAdapter: SearchAdapter
     private val searchResults = mutableListOf<Search>()
     private val recentSearches = mutableListOf<String>()
-    private lateinit var auth: FirebaseAuth
-    private lateinit var database: FirebaseDatabase
     private var currentFilter = "All"
     private lateinit var recentSearchesText: TextView
 
@@ -34,8 +32,7 @@ class SearchActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_search)
 
-        auth = FirebaseAuth.getInstance()
-        database = FirebaseDatabase.getInstance()
+        val sessionManager = SessionManager(this)
 
         val recyclerView: RecyclerView = findViewById(R.id.recentSearchesRecyclerView)
         val searchBar: EditText = findViewById(R.id.searchBar)
@@ -44,10 +41,13 @@ class SearchActivity : AppCompatActivity() {
         val filterFollowers: TextView = findViewById(R.id.filterFollowers)
         val filterFollowing: TextView = findViewById(R.id.filterFollowing)
 
-        searchAdapter = SearchAdapter(searchResults) { username ->
-            val intent = Intent(this, ProfileViewActivity::class.java)
-            intent.putExtra("username", username)
-            startActivity(intent)
+        searchAdapter = SearchAdapter(searchResults) { username: String ->
+            Log.d("SearchActivity", "Clicked username: $username")
+            if (username.isNotEmpty()) {
+                openProfileView(username)
+            } else {
+                Toast.makeText(this, "Invalid username", Toast.LENGTH_SHORT).show()
+            }
         }
         recyclerView.layoutManager = LinearLayoutManager(this)
         recyclerView.adapter = searchAdapter
@@ -83,11 +83,10 @@ class SearchActivity : AppCompatActivity() {
             override fun afterTextChanged(s: Editable?) {
                 if (s.isNullOrEmpty()) {
                     recentSearchesText.text = "Recent Searches"
-                    val recentSearchItems = recentSearches.map { Search(it, "") }
+                    val recentSearchItems = recentSearches.map { Search(0, it, "") }
                     searchAdapter.updateData(recentSearchItems.toMutableList())
                 } else {
                     recentSearchesText.text = "Search Results"
-                    searchAdapter.updateData(searchResults)
                     searchUsers(s.toString())
                 }
             }
@@ -132,86 +131,52 @@ class SearchActivity : AppCompatActivity() {
     }
 
     private fun searchUsers(query: String) {
-        searchResults.clear()
-        val currentUserId = auth.currentUser?.uid ?: return
-
-        when (currentFilter) {
-            "All" -> {
-                database.getReference("Users").addListenerForSingleValueEvent(object : ValueEventListener {
-                    override fun onDataChange(snapshot: DataSnapshot) {
-                        for (userSnapshot in snapshot.children) {
-                            val user = userSnapshot.getValue(User::class.java)
-                            if (user != null && user.username.contains(query, ignoreCase = true)) {
-                                searchResults.add(Search(user.username, user.image))
-                            }
-                        }
-                        searchAdapter.notifyDataSetChanged()
-                    }
-
-                    override fun onCancelled(error: DatabaseError) {
-                        Toast.makeText(this@SearchActivity, "Error: ${error.message}", Toast.LENGTH_SHORT).show()
-                    }
-                })
-            }
-
-            "Followers" -> {
-                database.getReference("Followers").child(currentUserId)
-                    .addListenerForSingleValueEvent(object : ValueEventListener {
-                        override fun onDataChange(snapshot: DataSnapshot) {
-                            for (followerSnapshot in snapshot.children) {
-                                val followerId = followerSnapshot.key ?: continue
-                                database.getReference("Users").child(followerId)
-                                    .addListenerForSingleValueEvent(object : ValueEventListener {
-                                        override fun onDataChange(userSnapshot: DataSnapshot) {
-                                            val user = userSnapshot.getValue(User::class.java)
-                                            if (user != null && user.username.contains(query, ignoreCase = true)) {
-                                                searchResults.add(Search(user.username, user.image))
-                                                searchAdapter.notifyDataSetChanged()
-                                            }
-                                        }
-
-                                        override fun onCancelled(error: DatabaseError) {
-                                            Toast.makeText(this@SearchActivity, "Error: ${error.message}", Toast.LENGTH_SHORT).show()
-                                        }
-                                    })
-                            }
-                        }
-
-                        override fun onCancelled(error: DatabaseError) {
-                            Toast.makeText(this@SearchActivity, "Error: ${error.message}", Toast.LENGTH_SHORT).show()
-                        }
-                    })
-            }
-
-            "Following" -> {
-                database.getReference("Following").child(currentUserId)
-                    .addListenerForSingleValueEvent(object : ValueEventListener {
-                        override fun onDataChange(snapshot: DataSnapshot) {
-                            for (followingSnapshot in snapshot.children) {
-                                val followingId = followingSnapshot.key ?: continue
-                                database.getReference("Users").child(followingId)
-                                    .addListenerForSingleValueEvent(object : ValueEventListener {
-                                        override fun onDataChange(userSnapshot: DataSnapshot) {
-                                            val user = userSnapshot.getValue(User::class.java)
-                                            if (user != null && user.username.contains(query, ignoreCase = true)) {
-                                                searchResults.add(Search(user.username, user.image))
-                                                searchAdapter.notifyDataSetChanged()
-                                            }
-                                        }
-
-                                        override fun onCancelled(error: DatabaseError) {
-                                            Toast.makeText(this@SearchActivity, "Error: ${error.message}", Toast.LENGTH_SHORT).show()
-                                        }
-                                    })
-                            }
-                        }
-
-                        override fun onCancelled(error: DatabaseError) {
-                            Toast.makeText(this@SearchActivity, "Error: ${error.message}", Toast.LENGTH_SHORT).show()
-                        }
-                    })
-            }
+        val userId = SessionManager(this).getUserId()?.toIntOrNull() ?: run {
+            Toast.makeText(this, "User not logged in", Toast.LENGTH_SHORT).show()
+            startActivity(Intent(this, LoginActivity::class.java))
+            finish()
+            return
         }
+
+        val requestQueue = Volley.newRequestQueue(this)
+        val searchUrl = "http://192.168.1.11/ConnectMe/Profile/searchUsers.php"
+        val searchJson = JSONObject().apply {
+            put("user_id", userId)
+            put("query", query)
+            put("filter", currentFilter)
+        }
+
+        val searchRequest = JsonObjectRequest(
+            Request.Method.POST, searchUrl, searchJson,
+            { response ->
+                Log.d("SearchActivity", "Search response: $response")
+                if (response.getBoolean("success")) {
+                    searchResults.clear()
+                    val usersArray = response.getJSONArray("users")
+                    for (i in 0 until usersArray.length()) {
+                        val user = usersArray.getJSONObject(i)
+                        val id = user.getInt("id")
+                        val username = user.optString("username", "Unknown")
+                        val profileImage = user.optString("profile_image", "")
+                        searchResults.add(Search(id, username, profileImage))
+                    }
+                    searchAdapter.notifyDataSetChanged()
+                } else {
+                    Toast.makeText(this, response.optString("message", "No users found"), Toast.LENGTH_SHORT).show()
+                }
+            },
+            { error ->
+                Log.e("SearchActivity", "Volley error: ${error.message}")
+                Toast.makeText(this, "Error: ${error.message ?: "Failed to search"}", Toast.LENGTH_SHORT).show()
+            }
+        )
+        requestQueue.add(searchRequest)
+    }
+
+    private fun openProfileView(username: String) {
+        val intent = Intent(this, ProfileViewActivity::class.java)
+        intent.putExtra("username", username)
+        startActivity(intent)
     }
 
     private fun loadRecentSearches() {
@@ -219,7 +184,7 @@ class SearchActivity : AppCompatActivity() {
         val searches = prefs.getStringSet("searches", emptySet())?.toList() ?: emptyList()
         recentSearches.clear()
         recentSearches.addAll(searches)
-        val recentSearchItems = recentSearches.map { Search(it, "") }
+        val recentSearchItems = recentSearches.map { Search(0, it, "") }
         searchAdapter.updateData(recentSearchItems.toMutableList())
     }
 

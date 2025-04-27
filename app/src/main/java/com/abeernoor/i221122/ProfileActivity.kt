@@ -123,7 +123,7 @@ class ProfileActivity : AppCompatActivity() {
 
     private fun loadUserData(userId: String) {
         val requestQueue = Volley.newRequestQueue(this)
-        val getProfileUrl = "http://192.168.1.11/ConnectMe/Login_SignUp/getProfile.php"
+        val getProfileUrl = "http://192.168.1.11/ConnectMe/Profile/getProfile.php"
         val getProfileJson = JSONObject().apply {
             put("user_id", userId)
         }
@@ -137,11 +137,13 @@ class ProfileActivity : AppCompatActivity() {
                     val usernameStr = user.optString("username", "Unknown")
                     val bioStr = user.optString("bio", "No bio yet")
                     val image = user.optString("profile_image", "")
+                    val followerCount = user.optInt("follower_count", 0)
+                    val followingCount = user.optInt("following_count", 0)
 
                     username.text = usernameStr
                     bio.text = bioStr
-                    followersCount.text = user.optInt("follower_count", 0).toString()
-                    followingCount.text = user.optInt("following_count", 0).toString()
+                    followersCount.text = followerCount.toString()
+                    this.followingCount.text = followingCount.toString()
 
                     if (image.isNotEmpty()) {
                         try {
@@ -169,7 +171,7 @@ class ProfileActivity : AppCompatActivity() {
 
     private fun loadPosts(userId: String) {
         val requestQueue = Volley.newRequestQueue(this)
-        val getPostsUrl = "http://192.168.1.11/ConnectMe/Login_SignUp/getPosts.php"
+        val getPostsUrl = "http://192.168.1.11/ConnectMe/Profile/getPosts.php"
         val getPostsJson = JSONObject().apply {
             put("user_id", userId)
         }

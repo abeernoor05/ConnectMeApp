@@ -1,36 +1,41 @@
 package com.abeernoor.i221122
 
+import android.content.Intent
 import android.graphics.BitmapFactory
 import android.os.Bundle
 import android.util.Base64
+import android.util.Log
 import android.widget.Button
 import android.widget.ImageView
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
-import androidx.core.app.NotificationCompat
-import android.app.NotificationManager
-import android.app.PendingIntent
-import android.content.Context
-import android.content.Intent
-import com.google.firebase.auth.FirebaseAuth
-import com.google.firebase.database.DataSnapshot
-import com.google.firebase.database.DatabaseError
-import com.google.firebase.database.FirebaseDatabase
-import com.google.firebase.database.ValueEventListener
+import com.android.volley.Request
+import com.android.volley.toolbox.JsonObjectRequest
+import com.android.volley.toolbox.Volley
+import org.json.JSONObject
 
 class ProfileViewActivity : AppCompatActivity() {
 
+    private var targetUserId: Int? = null
+
+    // Commented out Firebase variables
+    /*
     private lateinit var auth: FirebaseAuth
     private lateinit var database: FirebaseDatabase
-    private var targetUserId: String? = null
+    */
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_profile_view)
 
+        val sessionManager = SessionManager(this)
+
+        // Commented out Firebase initialization
+        /*
         auth = FirebaseAuth.getInstance()
         database = FirebaseDatabase.getInstance()
+        */
 
         val backButton: ImageView = findViewById(R.id.backButton)
         val profileImage: ImageView = findViewById(R.id.profileImage)
@@ -42,148 +47,211 @@ class ProfileViewActivity : AppCompatActivity() {
         val followButton: Button = findViewById(R.id.followButton)
         val messageButton: Button = findViewById(R.id.messageButton)
 
-        val username = intent.getStringExtra("username") ?: return
+        val username = intent.getStringExtra("username") ?: run {
+            Toast.makeText(this, "Username not provided", Toast.LENGTH_SHORT).show()
+            finish()
+            return
+        }
 
         backButton.setOnClickListener {
             finish()
         }
 
-        database.getReference("Users").orderByChild("username").equalTo(username)
-            .addListenerForSingleValueEvent(object : ValueEventListener {
-                override fun onDataChange(snapshot: DataSnapshot) {
-                    if (snapshot.exists()) {
-                        for (userSnapshot in snapshot.children) {
-                            val user = userSnapshot.getValue(User::class.java)
-                            if (user != null) {
-                                targetUserId = userSnapshot.key
-                                usernameText.text = user.username
-                                nameText.text = user.name
-                                bioText.text = user.bio.ifEmpty { "No bio available" }
-                                followersCount.text = "${user.followerCount} Followers"
-                                followingCount.text = "${user.followingCount} Following"
+        messageButton.setOnClickListener {
+            Toast.makeText(this, "Messaging not implemented", Toast.LENGTH_SHORT).show()
+            // TODO: Implement messaging if needed
+        }
 
-                                if (user.image.isNotEmpty()) {
-                                    try {
-                                        val decodedBytes = Base64.decode(user.image, Base64.DEFAULT)
-                                        val bitmap = BitmapFactory.decodeByteArray(decodedBytes, 0, decodedBytes.size)
-                                        profileImage.setImageBitmap(bitmap)
-                                    } catch (e: Exception) {
-                                        profileImage.setImageResource(R.drawable.profile_placeholder)
-                                    }
-                                } else {
-                                    profileImage.setImageResource(R.drawable.profile_placeholder)
-                                }
+        // Load user data
+        val requestQueue = Volley.newRequestQueue(this)
+        val getUserUrl = "http://192.168.1.11/ConnectMe/Profile/getUserByUsername.php"
+        val getUserJson = JSONObject().apply {
+            put("username", username)
+        }
 
-                                val currentUserId = auth.currentUser?.uid
-                                if (currentUserId != null && targetUserId != null) {
-                                    database.getReference("Following").child(currentUserId).child(targetUserId!!)
-                                        .addListenerForSingleValueEvent(object : ValueEventListener {
-                                            override fun onDataChange(followingSnapshot: DataSnapshot) {
-                                                if (followingSnapshot.exists()) {
-                                                    followButton.text = "Unfollow"
-                                                } else {
-                                                    database.getReference("FollowRequests").child(targetUserId!!).child(currentUserId)
-                                                        .addListenerForSingleValueEvent(object : ValueEventListener {
-                                                            override fun onDataChange(requestSnapshot: DataSnapshot) {
-                                                                followButton.text = if (requestSnapshot.exists()) "Requested" else "Follow"
-                                                            }
+        val getUserRequest = JsonObjectRequest(
+            Request.Method.POST, getUserUrl, getUserJson,
+            { response ->
+                Log.d("ProfileViewActivity", "Get user response: $response")
+                if (response.getBoolean("success")) {
+                    val user = response.getJSONObject("user")
+                    targetUserId = user.getInt("id")
+                    usernameText.text = user.optString("username", "Unknown")
+                    nameText.text = user.optString("name", "")
+                    bioText.text = user.optString("bio", "No bio available")
+                    followersCount.text = "${user.optInt("follower_count", 0)} Followers"
+                    followingCount.text = "${user.optInt("following_count", 0)} Following"
 
-                                                            override fun onCancelled(error: DatabaseError) {}
-                                                        })
-                                                }
-                                            }
-
-                                            override fun onCancelled(error: DatabaseError) {}
-                                        })
-                                }
-                            }
+                    val profileImageStr = user.optString("profile_image", "")
+                    if (profileImageStr.isNotEmpty()) {
+                        try {
+                            val decodedBytes = Base64.decode(profileImageStr, Base64.DEFAULT)
+                            val bitmap = BitmapFactory.decodeByteArray(decodedBytes, 0, decodedBytes.size)
+                            profileImage.setImageBitmap(bitmap)
+                        } catch (e: Exception) {
+                            profileImage.setImageResource(R.drawable.profile_placeholder)
                         }
                     } else {
-                        Toast.makeText(this@ProfileViewActivity, "User not found", Toast.LENGTH_SHORT).show()
-                        finish()
+                        profileImage.setImageResource(R.drawable.profile_placeholder)
                     }
-                }
 
-                override fun onCancelled(error: DatabaseError) {
-                    Toast.makeText(this@ProfileViewActivity, "Error: ${error.message}", Toast.LENGTH_SHORT).show()
+                    // Check follow status
+                    val currentUserId = sessionManager.getUserId()?.toIntOrNull() ?: return@JsonObjectRequest
+                    checkFollowStatus(currentUserId, targetUserId!!, followButton)
+                } else {
+                    Toast.makeText(this, response.optString("message", "User not found"), Toast.LENGTH_SHORT).show()
+                    finish()
                 }
-            })
+            },
+            { error ->
+                Log.e("ProfileViewActivity", "Volley error: ${error.message}")
+                Toast.makeText(this, "Error: ${error.message ?: "Failed to load user"}", Toast.LENGTH_SHORT).show()
+                finish()
+            }
+        )
+        requestQueue.add(getUserRequest)
 
         followButton.setOnClickListener {
-            val currentUserId = auth.currentUser?.uid
-            if (currentUserId == null || targetUserId == null) {
-                Toast.makeText(this, "Error: User not logged in or target not found", Toast.LENGTH_SHORT).show()
+            val currentUserId = sessionManager.getUserId()?.toIntOrNull() ?: run {
+                Toast.makeText(this, "User not logged in", Toast.LENGTH_SHORT).show()
+                startActivity(Intent(this, LoginActivity::class.java))
+                return@setOnClickListener
+            }
+            if (targetUserId == null) {
+                Toast.makeText(this, "Target user not found", Toast.LENGTH_SHORT).show()
                 return@setOnClickListener
             }
 
             when (followButton.text) {
                 "Follow" -> {
-                    database.getReference("Users").child(currentUserId).get()
-                        .addOnSuccessListener { snapshot ->
-                            val currentUser = snapshot.getValue(User::class.java)
-                            val requesterUsername = currentUser?.username ?: "Unknown"
-
-                            val requestData = mutableMapOf<String, Any>()
-                            requestData["username"] = requesterUsername
-                            requestData["timestamp"] = System.currentTimeMillis()
-
-                            database.getReference("FollowRequests").child(targetUserId!!).child(currentUserId)
-                                .setValue(requestData)
-                                .addOnSuccessListener {
-                                    followButton.text = "Requested"
-                                    sendFollowRequestNotification(targetUserId!!, username)
-                                    Toast.makeText(this, "Follow request sent", Toast.LENGTH_SHORT).show()
-                                }
-                                .addOnFailureListener {
-                                    Toast.makeText(this, "Failed to send request", Toast.LENGTH_SHORT).show()
-                                }
-                        }
-                        .addOnFailureListener {
-                            Toast.makeText(this, "Failed to fetch username", Toast.LENGTH_SHORT).show()
-                        }
+                    sendFollowRequest(currentUserId, targetUserId!!, followButton)
                 }
                 "Requested" -> {
-                    database.getReference("FollowRequests").child(targetUserId!!).child(currentUserId)
-                        .removeValue()
-                        .addOnSuccessListener {
-                            followButton.text = "Follow"
-                            Toast.makeText(this, "Request cancelled", Toast.LENGTH_SHORT).show()
-                        }
+                    cancelFollowRequest(currentUserId, targetUserId!!, followButton)
                 }
                 "Unfollow" -> {
-                    Toast.makeText(this, "Unfollow clicked (to be fully implemented)", Toast.LENGTH_SHORT).show()
+                    unfollowUser(currentUserId, targetUserId!!, followButton)
                 }
             }
-        }
-
-        messageButton.setOnClickListener {
-            val currentUserId = auth.currentUser?.uid
-            if (currentUserId == null || targetUserId == null) {
-                Toast.makeText(this, "Error: User not logged in or target not found", Toast.LENGTH_SHORT).show()
-                return@setOnClickListener
-            }
-
-            // Generate chatId (sorted user IDs)
-            val chatId = if (currentUserId < targetUserId!!) {
-                "${currentUserId}_${targetUserId}"
-            } else {
-                "${targetUserId}_${currentUserId}"
-            }
-
-            // Update Chats node for both users
-            database.getReference("Chats").child(currentUserId).child(chatId).setValue(true)
-            database.getReference("Chats").child(targetUserId!!).child(chatId).setValue(true)
-
-            // Start ActualChatActivity with chatId, targetUserId, and username
-            val intent = Intent(this, ActualChatActivity::class.java).apply {
-                putExtra("chatId", chatId)
-                putExtra("userId", targetUserId)
-                putExtra("username", username)
-            }
-            startActivity(intent)
         }
     }
 
+    private fun checkFollowStatus(currentUserId: Int, targetUserId: Int, followButton: Button) {
+        val requestQueue = Volley.newRequestQueue(this)
+        val checkStatusUrl = "http://192.168.1.11/ConnectMe/Profile/checkFollowStatus.php"
+        val checkStatusJson = JSONObject().apply {
+            put("current_user_id", currentUserId)
+            put("target_user_id", targetUserId)
+        }
+
+        val checkStatusRequest = JsonObjectRequest(
+            Request.Method.POST, checkStatusUrl, checkStatusJson,
+            { response ->
+                Log.d("ProfileViewActivity", "Check status response: $response")
+                if (response.getBoolean("success")) {
+                    when {
+                        response.getBoolean("is_following") -> followButton.text = "Unfollow"
+                        response.getBoolean("has_requested") -> followButton.text = "Requested"
+                        else -> followButton.text = "Follow"
+                    }
+                } else {
+                    followButton.text = "Follow"
+                    Toast.makeText(this, response.optString("message", "Failed to check follow status"), Toast.LENGTH_SHORT).show()
+                }
+            },
+            { error ->
+                Log.e("ProfileViewActivity", "Volley error: ${error.message}")
+                followButton.text = "Follow"
+                Toast.makeText(this, "Error: ${error.message ?: "Failed to check status"}", Toast.LENGTH_SHORT).show()
+            }
+        )
+        requestQueue.add(checkStatusRequest)
+    }
+
+    private fun sendFollowRequest(requesterId: Int, targetId: Int, followButton: Button) {
+        val requestQueue = Volley.newRequestQueue(this)
+        val sendRequestUrl = "http://192.168.1.11/ConnectMe/Profile/sendFollowRequest.php"
+        val sendRequestJson = JSONObject().apply {
+            put("requester_id", requesterId)
+            put("target_id", targetId)
+        }
+
+        val sendRequest = JsonObjectRequest(
+            Request.Method.POST, sendRequestUrl, sendRequestJson,
+            { response ->
+                Log.d("ProfileViewActivity", "Send follow request response: $response")
+                if (response.getBoolean("success")) {
+                    followButton.text = "Requested"
+                    Toast.makeText(this, "Follow request sent", Toast.LENGTH_SHORT).show()
+                } else {
+                    Toast.makeText(this, response.optString("message", "Failed to send request"), Toast.LENGTH_SHORT).show()
+                }
+            },
+            { error ->
+                Log.e("ProfileViewActivity", "Volley error: ${error.message}")
+                Toast.makeText(this, "Error: ${error.message ?: "Failed to send request"}", Toast.LENGTH_SHORT).show()
+            }
+        )
+        requestQueue.add(sendRequest)
+    }
+
+    private fun cancelFollowRequest(requesterId: Int, targetId: Int, followButton: Button) {
+        val requestQueue = Volley.newRequestQueue(this)
+        val cancelRequestUrl = "http://192.168.1.11/ConnectMe/Profile/handleFollowRequest.php"
+        val cancelRequestJson = JSONObject().apply {
+            put("requester_id", requesterId)
+            put("target_id", targetId)
+            put("is_accepted", false)
+        }
+
+        val cancelRequest = JsonObjectRequest(
+            Request.Method.POST, cancelRequestUrl, cancelRequestJson,
+            { response ->
+                Log.d("ProfileViewActivity", "Cancel follow request response: $response")
+                if (response.getBoolean("success")) {
+                    followButton.text = "Follow"
+                    Toast.makeText(this, "Request cancelled", Toast.LENGTH_SHORT).show()
+                } else {
+                    Toast.makeText(this, response.optString("message", "Failed to cancel request"), Toast.LENGTH_SHORT).show()
+                }
+            },
+            { error ->
+                Log.e("ProfileViewActivity", "Volley error: ${error.message}")
+                Toast.makeText(this, "Error: ${error.message ?: "Failed to cancel request"}", Toast.LENGTH_SHORT).show()
+            }
+        )
+        requestQueue.add(cancelRequest)
+    }
+
+    private fun unfollowUser(followerId: Int, followedId: Int, followButton: Button) {
+        val requestQueue = Volley.newRequestQueue(this)
+        val unfollowUrl = "http://192.168.1.11/ConnectMe/Profile/unfollowUser.php"
+        val unfollowJson = JSONObject().apply {
+            put("follower_id", followerId)
+            put("followed_id", followedId)
+        }
+
+        val unfollowRequest = JsonObjectRequest(
+            Request.Method.POST, unfollowUrl, unfollowJson,
+            { response ->
+                Log.d("ProfileViewActivity", "Unfollow response: $response")
+                if (response.getBoolean("success")) {
+                    followButton.text = "Follow"
+                    Toast.makeText(this, "Unfollowed", Toast.LENGTH_SHORT).show()
+                } else {
+                    Toast.makeText(this, response.optString("message", "Failed to unfollow"), Toast.LENGTH_SHORT).show()
+                }
+            },
+            { error ->
+                Log.e("ProfileViewActivity", "Volley error: ${error.message}")
+                Toast.makeText(this, "Error: ${error.message ?: "Failed to unfollow"}", Toast.LENGTH_SHORT).show()
+            }
+        )
+        requestQueue.add(unfollowRequest)
+    }
+
+    // Commented out Firebase methods
+    /*
     private fun sendFollowRequestNotification(targetUserId: String, targetUsername: String) {
         database.getReference("Users").child(targetUserId).child("fcmToken")
             .addListenerForSingleValueEvent(object : ValueEventListener {
@@ -224,4 +292,5 @@ class ProfileViewActivity : AppCompatActivity() {
                 }
             })
     }
+    */
 }

@@ -12,7 +12,7 @@ import androidx.recyclerview.widget.RecyclerView
 
 class SearchAdapter(
     private val searchResults: MutableList<Search>,
-    private val onItemClick: (String) -> Unit  // Callback for item clicks
+    private val onItemClick: (String) -> Unit
 ) : RecyclerView.Adapter<SearchAdapter.SearchViewHolder>() {
 
     class SearchViewHolder(view: View) : RecyclerView.ViewHolder(view) {
@@ -43,13 +43,19 @@ class SearchAdapter(
             holder.profileImage.setImageResource(R.drawable.profile_placeholder)
         }
 
-        holder.deleteIcon.setOnClickListener {
-            searchResults.removeAt(position)
-            notifyItemRemoved(position)
-            val prefs = holder.itemView.context.getSharedPreferences("RecentSearches", Context.MODE_PRIVATE)
-            val searches = prefs.getStringSet("searches", mutableSetOf())?.toMutableSet() ?: mutableSetOf()
-            searches.remove(result.username)
-            prefs.edit().putStringSet("searches", searches).apply()
+        // Show delete icon for recent searches, hide for search results
+        if (result.userId == 0) {
+            holder.deleteIcon.visibility = View.VISIBLE
+            holder.deleteIcon.setOnClickListener {
+                searchResults.removeAt(position)
+                notifyItemRemoved(position)
+                val prefs = holder.itemView.context.getSharedPreferences("RecentSearches", Context.MODE_PRIVATE)
+                val searches = prefs.getStringSet("searches", mutableSetOf())?.toMutableSet() ?: mutableSetOf()
+                searches.remove(result.username)
+                prefs.edit().putStringSet("searches", searches).apply()
+            }
+        } else {
+            holder.deleteIcon.visibility = View.GONE
         }
 
         holder.itemView.setOnClickListener {
