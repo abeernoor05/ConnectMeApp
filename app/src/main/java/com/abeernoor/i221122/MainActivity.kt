@@ -10,15 +10,21 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.bottomnavigation.BottomNavigationView
+// Commented out Firebase imports
+/*
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.database.DataSnapshot
 import com.google.firebase.database.DatabaseError
 import com.google.firebase.database.FirebaseDatabase
 import com.google.firebase.database.ValueEventListener
+*/
 
 class MainActivity : AppCompatActivity() {
+    // Commented out Firebase variables
+    /*
     private lateinit var auth: FirebaseAuth
     private lateinit var database: FirebaseDatabase
+    */
     private lateinit var storiesAdapter: StoryAdapter
     private lateinit var postsAdapter: postAdapter
     private val storiesList = mutableListOf<story>()
@@ -28,8 +34,11 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.home_page)
+        // Commented out Firebase initialization
+        /*
         auth = FirebaseAuth.getInstance()
         database = FirebaseDatabase.getInstance()
+        */
 
         val storiesRecyclerView = findViewById<RecyclerView>(R.id.storiesRecyclerView)
         val postsRecyclerView = findViewById<RecyclerView>(R.id.postsRecyclerView)
@@ -37,21 +46,35 @@ class MainActivity : AppCompatActivity() {
         val dmsIcon = findViewById<ImageView>(R.id.communityIcon)
         val notifIcon = findViewById<ImageView>(R.id.heartIcon)
 
+        // Commented out Firebase online status logic
+        /*
         // Set online status
         val currentUserId = auth.currentUser?.uid ?: return
         val userRef = database.getReference("Users").child(currentUserId)
         userRef.child("onlineStatus").setValue(true)
         userRef.child("onlineStatus").onDisconnect().setValue(false)
+        */
+
+        // Initialize SessionManager
+        val sessionManager = SessionManager(this)
 
         dmsIcon.setOnClickListener {
             startActivity(Intent(this, DmsActivity::class.java))
         }
+
         logoutButton.setOnClickListener {
+            // Commented out Firebase logout
+            /*
             auth.signOut()
             userRef.child("onlineStatus").setValue(false)
+            */
+
+            // New logout implementation using SharedPreferences
+            sessionManager.clearSession()
             startActivity(Intent(this, LoginActivity::class.java))
             finish()
         }
+
         notifIcon.setOnClickListener {
             startActivity(Intent(this, FollowRequestsActivity::class.java))
         }
@@ -91,11 +114,16 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
+        // Commented out calls to Firebase-dependent methods
+        /*
         // Load stories and posts
         loadStories()
         loadPosts()
+        */
     }
 
+    // Commented out Firebase-dependent methods
+    /*
     private fun loadStories() {
         val currentUserId = auth.currentUser?.uid ?: return
 
@@ -298,4 +326,5 @@ class MainActivity : AppCompatActivity() {
             null
         }
     }
+    */
 }
