@@ -11,7 +11,7 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
-import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.android.volley.Request
 import com.android.volley.toolbox.JsonObjectRequest
@@ -27,7 +27,7 @@ class ProfileActivity : AppCompatActivity() {
     private lateinit var followersCount: TextView
     private lateinit var followingCount: TextView
     private lateinit var recyclerView: RecyclerView
-    private lateinit var postAdapter: postAdapter
+    private lateinit var postAdapter: showPostAdapter // Updated to showPostAdapter
     private val postsList = mutableListOf<Post>()
     private val TAG = "ProfileActivity"
 
@@ -49,9 +49,9 @@ class ProfileActivity : AppCompatActivity() {
         val bottomNavigationView: BottomNavigationView = findViewById(R.id.bottom_navigation)
         recyclerView = findViewById(R.id.recyclerViewPosts)
 
-        // RecyclerView setup
-        recyclerView.layoutManager = LinearLayoutManager(this)
-        postAdapter = postAdapter(postsList)
+        // RecyclerView setup with GridLayoutManager
+        recyclerView.layoutManager = GridLayoutManager(this, 3) // 3 columns for Instagram-like grid
+        postAdapter = showPostAdapter(postsList) // Updated to showPostAdapter
         recyclerView.adapter = postAdapter
 
         // Get current user ID
@@ -263,75 +263,3 @@ class ProfileActivity : AppCompatActivity() {
         return inSampleSize
     }
 }
-
-// Commented out Firebase methods
-/*
-private fun loadUserData(userId: String) {
-    database.getReference("Users").child(userId)
-        .addListenerForSingleValueEvent(object : ValueEventListener {
-            override fun onDataChange(snapshot: DataSnapshot) {
-                val user = snapshot.getValue(User::class.java)
-                if (user != null) {
-                    username.text = user.username
-                    bio.text = if (user.bio.isNotEmpty()) user.bio else "No bio yet"
-                    followersCount.text = user.followerCount.toString()
-                    followingCount.text = user.followingCount.toString()
-
-                    if (user.image.isNotEmpty()) {
-                        try {
-                            val decodedBytes = Base64.decode(user.image, Base64.DEFAULT)
-                            val bitmap = BitmapFactory.decodeByteArray(decodedBytes, 0, decodedBytes.size)
-                            profilePic.setImageBitmap(bitmap)
-                        } catch (e: Exception) {
-                            profilePic.setImageResource(R.drawable.profile_placeholder)
-                        }
-                    } else {
-                        profilePic.setImageResource(R.drawable.profile_placeholder)
-                    }
-                } else {
-                    Toast.makeText(this@ProfileActivity, "User data not found", Toast.LENGTH_SHORT).show()
-                }
-            }
-
-            override fun onCancelled(error: DatabaseError) {
-                Toast.makeText(this@ProfileActivity, "Error: ${error.message}", Toast.LENGTH_SHORT).show()
-            }
-        })
-}
-
-private fun loadPosts(userId: String) {
-    database.getReference("Posts").child(userId)
-        .addListenerForSingleValueEvent(object : ValueEventListener {
-            override fun onDataChange(snapshot: DataSnapshot) {
-                val posts = mutableListOf<String>()
-                for (postSnapshot in snapshot.children) {
-                    val imageUrl = postSnapshot.child("imageUrl").getValue(String::class.java)
-                    if (imageUrl != null) {
-                        posts.add(imageUrl)
-                    }
-                }
-
-                postCount.text = posts.size.toString()
-
-                for (i in 0 until minOf(posts.size, 6)) {
-                    try {
-                        val decodedBytes = Base64.decode(posts[i], Base64.DEFAULT)
-                        val bitmap = BitmapFactory.decodeByteArray(decodedBytes, 0, decodedBytes.size)
-                        postImages[i].setImageBitmap(bitmap)
-                    } catch (e: Exception) {
-                        postImages[i].setImageResource(R.drawable.post_placeholder)
-                    }
-                }
-                for (i in posts.size until 6) {
-                    postImages[i].setImageResource(R.drawable.post_placeholder)
-                }
-            }
-
-            override fun onCancelled(error: DatabaseError) {
-                Toast.makeText(this@ProfileActivity, "Error loading posts: ${error.message}", Toast.LENGTH_SHORT).show()
-                postCount.text = "0"
-                postImages.forEach { it.setImageResource(R.drawable.post_placeholder) }
-            }
-        })
-}
-*/
