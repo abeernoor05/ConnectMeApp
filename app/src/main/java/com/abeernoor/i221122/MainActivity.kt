@@ -9,36 +9,25 @@ import android.widget.ImageView
 import androidx.appcompat.app.AppCompatActivity
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import com.android.volley.Request
+import com.android.volley.toolbox.JsonObjectRequest
+import com.android.volley.toolbox.Volley
 import com.google.android.material.bottomnavigation.BottomNavigationView
-// Commented out Firebase imports
-/*
-import com.google.firebase.auth.FirebaseAuth
-import com.google.firebase.database.DataSnapshot
-import com.google.firebase.database.DatabaseError
-import com.google.firebase.database.FirebaseDatabase
-import com.google.firebase.database.ValueEventListener
-*/
+import org.json.JSONObject
+// import com.google.firebase.firestore.FirebaseFirestore
+// import com.google.firebase.firestore.Query
 
 class MainActivity : AppCompatActivity() {
-    // Commented out Firebase variables
-    /*
-    private lateinit var auth: FirebaseAuth
-    private lateinit var database: FirebaseDatabase
-    */
     private lateinit var storiesAdapter: StoryAdapter
     private lateinit var postsAdapter: postAdapter
     private val storiesList = mutableListOf<story>()
     private val postsList = mutableListOf<Post>()
+    // private val db = FirebaseFirestore.getInstance()
 
     @SuppressLint("WrongViewCast")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.home_page)
-        // Commented out Firebase initialization
-        /*
-        auth = FirebaseAuth.getInstance()
-        database = FirebaseDatabase.getInstance()
-        */
 
         val storiesRecyclerView = findViewById<RecyclerView>(R.id.storiesRecyclerView)
         val postsRecyclerView = findViewById<RecyclerView>(R.id.postsRecyclerView)
@@ -46,30 +35,23 @@ class MainActivity : AppCompatActivity() {
         val dmsIcon = findViewById<ImageView>(R.id.communityIcon)
         val notifIcon = findViewById<ImageView>(R.id.heartIcon)
 
-        // Commented out Firebase online status logic
-        /*
-        // Set online status
-        val currentUserId = auth.currentUser?.uid ?: return
-        val userRef = database.getReference("Users").child(currentUserId)
-        userRef.child("onlineStatus").setValue(true)
-        userRef.child("onlineStatus").onDisconnect().setValue(false)
-        */
-
         // Initialize SessionManager
         val sessionManager = SessionManager(this)
+        val currentUserId = sessionManager.getUserId()?.toIntOrNull() ?: run {
+            startActivity(Intent(this, LoginActivity::class.java))
+            finish()
+            return
+        }
+
+        // Set online status
+        updateOnlineStatus(currentUserId, "online")
 
         dmsIcon.setOnClickListener {
             startActivity(Intent(this, DmsActivity::class.java))
         }
 
         logoutButton.setOnClickListener {
-            // Commented out Firebase logout
-            /*
-            auth.signOut()
-            userRef.child("onlineStatus").setValue(false)
-            */
-
-            // New logout implementation using SharedPreferences
+            updateOnlineStatus(currentUserId, "offline")
             sessionManager.clearSession()
             startActivity(Intent(this, LoginActivity::class.java))
             finish()
@@ -114,217 +96,142 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        // Commented out calls to Firebase-dependent methods
-        /*
         // Load stories and posts
-        loadStories()
-        loadPosts()
-        */
+        loadStories(currentUserId)
+        // loadPosts() // Implement if needed
     }
 
-    // Commented out Firebase-dependent methods
-    /*
-    private fun loadStories() {
-        val currentUserId = auth.currentUser?.uid ?: return
+    override fun onPause() {
+        super.onPause()
+        val sessionManager = SessionManager(this)
+        sessionManager.getUserId()?.toIntOrNull()?.let { updateOnlineStatus(it, "offline") }
+    }
 
-        // Add user's story (first item)
-        database.getReference("Users").child(currentUserId).addValueEventListener(object : ValueEventListener {
-            override fun onDataChange(userSnapshot: DataSnapshot) {
-                val user = userSnapshot.getValue(User::class.java)
-                if (user != null) {
-                    val onlineStatus = userSnapshot.child("onlineStatus").getValue(Boolean::class.java) ?: false
-                    Log.d("MainActivity", "Current user DP: ${user.image}")
-                    storiesList.removeAll { it.isUserStory } // Remove old user story
-                    storiesList.add(0, story(
-                        userId = currentUserId,
-                        username = user.username,
-                        image = user.image, // Profile picture
-                        storyContent = "", // Will be fetched in StoryAdapter
+    override fun onResume() {
+        super.onResume()
+        val sessionManager = SessionManager(this)
+        sessionManager.getUserId()?.toIntOrNull()?.let { updateOnlineStatus(it, "online") }
+    }
+
+    private fun updateOnlineStatus(userId: Int, status: String) {
+        val requestQueue = Volley.newRequestQueue(this)
+        val url = "http://192.168.1.11/ConnectMe/Story/updateOnlineStatus.php"
+        val jsonBody = JSONObject().apply {
+            put("user_id", userId)
+            put("status", status)
+        }
+
+        val request = JsonObjectRequest(
+            Request.Method.POST, url, jsonBody,
+            { response ->
+                if (response.getBoolean("success")) {
+                    Log.d("MainActivity", "Status updated: $status")
+                } else {
+                    Log.e("MainActivity", "Failed to update status: ${response.optString("message")}")
+                }
+            },
+            { error ->
+                Log.e("MainActivity", "Volley error updating status: ${error.message}")
+            }
+        )
+        requestQueue.add(request)
+    }
+
+    private fun loadStories(userId: Int) {
+        val requestQueue = Volley.newRequestQueue(this)
+        val url = "http://192.168.1.11/ConnectMe/Story/getStories.php"
+        val jsonBody = JSONObject().apply {
+            put("user_id", userId)
+        }
+
+        val request = JsonObjectRequest(
+            Request.Method.POST, url, jsonBody,
+            { response ->
+                Log.d("MainActivity", "Get stories response: $response")
+                if (response.getBoolean("success")) {
+                    storiesList.clear()
+                    val storiesArray = response.getJSONArray("stories")
+                    for (i in 0 until storiesArray.length()) {
+                        val storyJson = storiesArray.getJSONObject(i)
+                        val story = story(
+                            userId = storyJson.getString("user_id"),
+                            username = storyJson.getString("username"),
+                            image = storyJson.getString("profile_image"),
+                            storyContent = storyJson.getString("story_content"),
+                            videoUrl = if (storyJson.getBoolean("is_video")) storyJson.getString("story_content") else "",
+                            timestamp = storyJson.getLong("timestamp"),
+                            isUserStory = storyJson.getBoolean("is_user_story"),
+                            onlineStatus = storyJson.getString("status") == "online"
+                        )
+                        storiesList.add(story)
+                    }
+                    // Ensure current user's story is first
+                    storiesList.sortBy { !it.isUserStory }
+                    storiesAdapter.notifyDataSetChanged()
+                } else {
+                    Log.e("MainActivity", "Failed to load stories: ${response.optString("message")}")
+                }
+            },
+            { error ->
+                Log.e("MainActivity", "Volley error: ${error.message}, data: ${String(error.networkResponse?.data ?: byteArrayOf())}")
+            }
+        )
+        requestQueue.add(request)
+
+        /*
+        // Firebase logic for loading stories
+        storiesList.clear()
+        // Add current user's story placeholder
+        db.collection("users").document(currentUserId.toString()).get()
+            .addOnSuccessListener { userDoc ->
+                val username = userDoc.getString("username") ?: ""
+                val profileImage = userDoc.getString("profile_image") ?: ""
+                storiesList.add(
+                    story(
+                        userId = currentUserId.toString(),
+                        username = username,
+                        image = profileImage,
+                        storyContent = "",
                         videoUrl = "",
                         timestamp = 0L,
                         isUserStory = true,
-                        onlineStatus = onlineStatus
-                    ))
-                    storiesAdapter.notifyDataSetChanged()
-                }
-            }
-
-            override fun onCancelled(error: DatabaseError) {
-                Log.e("MainActivity", "Error fetching user: ${error.message}")
-            }
-        })
-
-        // Load stories from followed users
-        database.getReference("Following").child(currentUserId).addValueEventListener(object : ValueEventListener {
-            override fun onDataChange(snapshot: DataSnapshot) {
-                val followedUsers = snapshot.children.mapNotNull { it.key }
-                storiesList.removeAll { !it.isUserStory } // Clear old stories except user's
-                for (userId in followedUsers) {
-                    database.getReference("Stories").child(userId).addValueEventListener(object : ValueEventListener {
-                        override fun onDataChange(storySnapshot: DataSnapshot) {
-                            for (storySnap in storySnapshot.children) {
-                                val storyImage = storySnap.child("image").getValue(String::class.java) ?: ""
-                                val videoUrl = storySnap.child("videoUrl").getValue(String::class.java) ?: ""
-                                val timestamp = storySnap.child("timestamp").getValue(Long::class.java) ?: 0L
-                                if (System.currentTimeMillis() - timestamp < 24 * 60 * 60 * 1000) { // Less than 24 hours
-                                    database.getReference("Users").child(userId).addValueEventListener(object : ValueEventListener {
-                                        override fun onDataChange(userSnap: DataSnapshot) {
-                                            val username = userSnap.child("username").getValue(String::class.java) ?: "Unknown"
-                                            val profileImage = userSnap.child("image").getValue(String::class.java) ?: ""
-                                            val onlineStatus = userSnap.child("onlineStatus").getValue(Boolean::class.java) ?: false
-                                            Log.d("MainActivity", "Followed user $username DP: $profileImage")
-                                            storiesList.add(story(
-                                                userId = userId,
-                                                username = username,
-                                                image = profileImage, // Profile picture
-                                                storyContent = storyImage, // Story content
-                                                videoUrl = videoUrl,
-                                                timestamp = timestamp,
-                                                isUserStory = false,
-                                                onlineStatus = onlineStatus
-                                            ))
+                        onlineStatus = true
+                    )
+                )
+                // Load stories from followed users
+                db.collection("followers").document(currentUserId.toString())
+                    .collection("following").get()
+                    .addOnSuccessListener { followingDocs ->
+                        val followedIds = followingDocs.documents.map { it.id }
+                        db.collection("stories")
+                            .whereIn("user_id", followedIds + currentUserId.toString())
+                            .whereGreaterThan("timestamp", System.currentTimeMillis() - 24 * 60 * 60 * 1000)
+                            .orderBy("timestamp", Query.Direction.DESCENDING)
+                            .get()
+                            .addOnSuccessListener { storyDocs ->
+                                for (doc in storyDocs) {
+                                    val storyData = doc.data
+                                    db.collection("users").document(storyData["user_id"] as String).get()
+                                        .addOnSuccessListener { userDoc ->
+                                            storiesList.add(
+                                                story(
+                                                    userId = storyData["user_id"] as String,
+                                                    username = userDoc.getString("username") ?: "",
+                                                    image = userDoc.getString("profile_image") ?: "",
+                                                    storyContent = storyData["story_content"] as String,
+                                                    videoUrl = storyData["video_url"] as String? ?: "",
+                                                    timestamp = storyData["timestamp"] as Long,
+                                                    isUserStory = storyData["user_id"] == currentUserId.toString(),
+                                                    onlineStatus = userDoc.getString("status") == "online"
+                                                )
+                                            )
+                                            storiesList.sortBy { !it.isUserStory }
                                             storiesAdapter.notifyDataSetChanged()
                                         }
-
-                                        override fun onCancelled(error: DatabaseError) {
-                                            Log.e("MainActivity", "Error fetching user $userId: ${error.message}")
-                                        }
-                                    })
-                                } else {
-                                    // Delete expired story
-                                    storySnap.ref.removeValue()
                                 }
                             }
-                        }
-
-                        override fun onCancelled(error: DatabaseError) {
-                            Log.e("MainActivity", "Error fetching stories: ${error.message}")
-                        }
-                    })
-                }
+                    }
             }
-
-            override fun onCancelled(error: DatabaseError) {
-                Log.e("MainActivity", "Error fetching following: ${error.message}")
-            }
-        })
+        */
     }
-
-    private fun loadPosts() {
-        val currentUserId = auth.currentUser?.uid ?: return
-
-        // Clear existing posts
-        postsList.clear()
-
-        // Load user's posts and posts from followed users
-        database.getReference("Following").child(currentUserId).addValueEventListener(object : ValueEventListener {
-            override fun onDataChange(snapshot: DataSnapshot) {
-                val followedUsers = snapshot.children.mapNotNull { it.key } + currentUserId
-                postsList.clear()
-                for (userId in followedUsers) {
-                    database.getReference("Posts").orderByChild("userId").equalTo(userId)
-                        .addValueEventListener(object : ValueEventListener {
-                            override fun onDataChange(postSnapshot: DataSnapshot) {
-                                for (postSnap in postSnapshot.children) {
-                                    // Fetch current user profile image
-                                    database.getReference("Users").child(userId).addValueEventListener(object : ValueEventListener {
-                                        override fun onDataChange(userSnap: DataSnapshot) {
-                                            val profileImage = userSnap.child("image").getValue(String::class.java) ?: ""
-                                            val username = userSnap.child("username").getValue(String::class.java) ?: "Unknown"
-                                            val post = convertToPost(postSnap, profileImage, username)
-                                            if (post != null) {
-                                                // Avoid duplicates
-                                                if (!postsList.any { it.postId == post.postId }) {
-                                                    postsList.add(post)
-                                                }
-                                                // Sort posts by timestamp (newest first)
-                                                postsList.sortByDescending { it.timestamp }
-                                                postsAdapter.notifyDataSetChanged()
-                                            }
-                                        }
-
-                                        override fun onCancelled(error: DatabaseError) {
-                                            Log.e("MainActivity", "Error fetching user $userId: ${error.message}")
-                                        }
-                                    })
-                                }
-                            }
-
-                            override fun onCancelled(error: DatabaseError) {
-                                Log.e("MainActivity", "Error fetching posts: ${error.message}")
-                            }
-                        })
-                }
-            }
-
-            override fun onCancelled(error: DatabaseError) {
-                Log.e("MainActivity", "Error fetching following: ${error.message}")
-            }
-        })
-    }
-
-    private fun convertToPost(postSnap: DataSnapshot, profileImage: String, username: String): Post? {
-        return try {
-            val postMap = postSnap.value as? Map<String, Any> ?: return null
-            val postId = postMap["postId"]?.toString() ?: ""
-            val userId = postMap["userId"]?.toString() ?: ""
-            val postImage = postMap["postImage"]?.toString() ?: ""
-            val caption = postMap["caption"]?.toString() ?: ""
-            val timestamp = postMap["timestamp"]?.toString()?.toLongOrNull() ?: 0L
-
-            // Handle likes
-            val likesList = mutableListOf<String>()
-            when (val likesData = postMap["likes"]) {
-                is List<*> -> {
-                    likesList.addAll(likesData.filterIsInstance<String>())
-                }
-                is HashMap<*, *> -> {
-                    likesList.addAll(likesData.keys.filterIsInstance<String>())
-                }
-            }
-
-            // Handle comments
-            val commentsList = mutableListOf<Comment>()
-            when (val commentsData = postMap["comments"]) {
-                is List<*> -> {
-                    commentsList.addAll(commentsData.filterIsInstance<Map<String, Any>>().mapNotNull { commentMap ->
-                        Comment(
-                            commentId = commentMap["commentId"]?.toString() ?: "",
-                            userId = commentMap["userId"]?.toString() ?: "",
-                            username = commentMap["username"]?.toString() ?: "",
-                            text = commentMap["text"]?.toString() ?: "",
-                            timestamp = commentMap["timestamp"]?.toString()?.toLongOrNull() ?: 0L
-                        )
-                    })
-                }
-                is HashMap<*, *> -> {
-                    commentsList.addAll(commentsData.values.filterIsInstance<Map<String, Any>>().mapNotNull { commentMap ->
-                        Comment(
-                            commentId = commentMap["commentId"]?.toString() ?: "",
-                            userId = commentMap["userId"]?.toString() ?: "",
-                            username = commentMap["username"]?.toString() ?: "",
-                            text = commentMap["text"]?.toString() ?: "",
-                            timestamp = commentMap["timestamp"]?.toString()?.toLongOrNull() ?: 0L
-                        )
-                    })
-                }
-            }
-
-            Post(
-                postId = postId,
-                userId = userId,
-                username = username,
-                profileImage = profileImage,
-                postImage = postImage,
-                caption = caption,
-                timestamp = timestamp,
-                likes = likesList,
-                comments = commentsList
-            )
-        } catch (e: Exception) {
-            e.printStackTrace()
-            null
-        }
-    }
-    */
 }
