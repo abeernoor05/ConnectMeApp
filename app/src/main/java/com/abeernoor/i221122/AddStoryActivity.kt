@@ -11,6 +11,7 @@ import android.os.Build
 import android.os.Bundle
 import android.util.Base64
 import android.util.Log
+import android.view.View
 import android.widget.Button
 import android.widget.ImageView
 import android.widget.TextView
@@ -20,14 +21,16 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
-import com.google.firebase.auth.FirebaseAuth
 import java.io.ByteArrayOutputStream
+// import com.google.firebase.storage.FirebaseStorage
+// import com.google.firebase.firestore.FirebaseFirestore
 
 class AddStoryActivity : AppCompatActivity() {
 
-    private lateinit var auth: FirebaseAuth
     private var selectedImageBitmap: Bitmap? = null
     private var selectedVideoUri: Uri? = null
+    // private val storage = FirebaseStorage.getInstance()
+    // private val db = FirebaseFirestore.getInstance()
 
     private val requestPermissionLauncher = registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { permissions ->
         if (permissions.all { it.value }) {
@@ -49,8 +52,8 @@ class AddStoryActivity : AppCompatActivity() {
                     selectedImageBitmap = null
                     val storyPreview = findViewById<ImageView>(R.id.storyPreview)
                     val videoPreview = findViewById<VideoView>(R.id.videoPreview)
-                    storyPreview.visibility = android.view.View.GONE
-                    videoPreview.visibility = android.view.View.VISIBLE
+                    storyPreview.visibility = View.GONE
+                    videoPreview.visibility = View.VISIBLE
                     videoPreview.setVideoURI(uri)
                     videoPreview.start()
                 } else {
@@ -58,8 +61,8 @@ class AddStoryActivity : AppCompatActivity() {
                     selectedVideoUri = null
                     val storyPreview = findViewById<ImageView>(R.id.storyPreview)
                     val videoPreview = findViewById<VideoView>(R.id.videoPreview)
-                    storyPreview.visibility = android.view.View.VISIBLE
-                    videoPreview.visibility = android.view.View.GONE
+                    storyPreview.visibility = View.VISIBLE
+                    videoPreview.visibility = View.GONE
                     selectedImageBitmap?.let { bitmap ->
                         storyPreview.setImageBitmap(bitmap)
                     } ?: run {
@@ -76,7 +79,12 @@ class AddStoryActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_add_story)
 
-        auth = FirebaseAuth.getInstance()
+        val sessionManager = SessionManager(this)
+        val currentUserId = sessionManager.getUserId()?.toIntOrNull() ?: run {
+            Toast.makeText(this, "User not logged in", Toast.LENGTH_SHORT).show()
+            finish()
+            return
+        }
 
         val storyPreview = findViewById<ImageView>(R.id.storyPreview)
         val videoPreview = findViewById<VideoView>(R.id.videoPreview)
@@ -108,6 +116,56 @@ class AddStoryActivity : AppCompatActivity() {
             } else {
                 Toast.makeText(this, "Please select an image or video", Toast.LENGTH_SHORT).show()
             }
+
+            /*
+            // Firebase logic for uploading story
+            if (selectedImageBitmap != null) {
+                val baos = ByteArrayOutputStream()
+                selectedImageBitmap!!.compress(Bitmap.CompressFormat.JPEG, 100, baos)
+                val data = baos.toByteArray()
+                val storageRef = storage.reference.child("stories/$currentUserId/${System.currentTimeMillis()}.jpg")
+                storageRef.putBytes(data)
+                    .addOnSuccessListener {
+                        storageRef.downloadUrl.addOnSuccessListener { uri ->
+                            val storyData = hashMapOf(
+                                "user_id" to currentUserId.toString(),
+                                "story_content" to uri.toString(),
+                                "is_video" to false,
+                                "timestamp" to System.currentTimeMillis()
+                            )
+                            db.collection("stories").add(storyData)
+                                .addOnSuccessListener {
+                                    Toast.makeText(this, "Story posted", Toast.LENGTH_SHORT).show()
+                                    finish()
+                                }
+                        }
+                    }
+                    .addOnFailureListener { e ->
+                        Toast.makeText(this, "Failed to upload story: ${e.message}", Toast.LENGTH_SHORT).show()
+                    }
+            } else if (selectedVideoUri != null) {
+                val storageRef = storage.reference.child("stories/$currentUserId/${System.currentTimeMillis()}.mp4")
+                storageRef.putFile(selectedVideoUri!!)
+                    .addOnSuccessListener {
+                        storageRef.downloadUrl.addOnSuccessListener { uri ->
+                            val storyData = hashMapOf(
+                                "user_id" to currentUserId.toString(),
+                                "story_content" to uri.toString(),
+                                "is_video" to true,
+                                "timestamp" to System.currentTimeMillis()
+                            )
+                            db.collection("stories").add(storyData)
+                                .addOnSuccessListener {
+                                    Toast.makeText(this, "Story posted", Toast.LENGTH_SHORT).show()
+                                    finish()
+                                }
+                        }
+                    }
+                    .addOnFailureListener { e ->
+                        Toast.makeText(this, "Failed to upload story: ${e.message}", Toast.LENGTH_SHORT).show()
+                    }
+            }
+            */
         }
 
         postButton.setOnClickListener {

@@ -3,6 +3,7 @@ package com.abeernoor.i221122
 import android.graphics.BitmapFactory
 import android.net.Uri
 import android.os.Bundle
+import android.util.Base64
 import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
@@ -12,19 +13,17 @@ import android.widget.VideoView
 import androidx.appcompat.app.AppCompatActivity
 import androidx.recyclerview.widget.RecyclerView
 import androidx.viewpager2.widget.ViewPager2
-import com.google.firebase.database.DataSnapshot
-import com.google.firebase.database.DatabaseError
-import com.google.firebase.database.FirebaseDatabase
-import com.google.firebase.database.ValueEventListener
-import com.google.firebase.storage.FirebaseStorage
-import java.io.File
+import com.android.volley.Request
+import com.android.volley.toolbox.JsonObjectRequest
+import com.android.volley.toolbox.Volley
+import org.json.JSONObject
+// import com.google.firebase.firestore.FirebaseFirestore
 
 class ViewStoryActivity : AppCompatActivity() {
 
     private lateinit var storiesViewPager: ViewPager2
     private lateinit var stories: MutableList<story>
-    private lateinit var database: FirebaseDatabase
-    private lateinit var storage: FirebaseStorage
+    // private val db = FirebaseFirestore.getInstance()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -32,8 +31,7 @@ class ViewStoryActivity : AppCompatActivity() {
 
         storiesViewPager = findViewById(R.id.storiesViewPager)
         val closeButton = findViewById<ImageView>(R.id.closeButton)
-        database = FirebaseDatabase.getInstance()
-        storage = FirebaseStorage.getInstance()
+        stories = mutableListOf()
 
         val storyKeys = intent.getStringArrayListExtra("storyKeys") ?: emptyList()
         val userId = intent.getStringExtra("userId") ?: ""
@@ -43,7 +41,6 @@ class ViewStoryActivity : AppCompatActivity() {
             return
         }
 
-        stories = mutableListOf()
         fetchStories(userId, storyKeys)
 
         closeButton.setOnClickListener {
@@ -52,54 +49,81 @@ class ViewStoryActivity : AppCompatActivity() {
     }
 
     private fun fetchStories(userId: String, storyKeys: List<String>) {
-        val storiesRef = database.getReference("Stories").child(userId)
-        // Fetch username and profile picture
-        database.getReference("Users").child(userId).addListenerForSingleValueEvent(object : ValueEventListener {
-            override fun onDataChange(userSnapshot: DataSnapshot) {
-                val username = userSnapshot.child("username").getValue(String::class.java) ?: "Unknown"
-                val profileImage = userSnapshot.child("image").getValue(String::class.java) ?: ""
-                Log.d("ViewStoryActivity", "Fetched profile picture for $username: $profileImage")
+        val requestQueue = Volley.newRequestQueue(this)
+        val url = "http://192.168.1.11/ConnectMe/Story/getStories.php"
+        val jsonBody = JSONObject().apply {
+            put("user_id", userId)
+        }
 
-                stories.clear()
-                for (key in storyKeys) {
-                    storiesRef.child(key).addListenerForSingleValueEvent(object : ValueEventListener {
-                        override fun onDataChange(snapshot: DataSnapshot) {
-                            val storyImage = snapshot.child("image").getValue(String::class.java) ?: ""
-                            val videoUrl = snapshot.child("videoUrl").getValue(String::class.java) ?: ""
-                            val timestamp = snapshot.child("timestamp").getValue(Long::class.java) ?: 0L
+        val request = JsonObjectRequest(
+            Request.Method.POST, url, jsonBody,
+            { response ->
+                if (response.getBoolean("success")) {
+                    val storiesArray = response.getJSONArray("stories")
+                    stories.clear()
+                    for (i in 0 until storiesArray.length()) {
+                        val storyJson = storiesArray.getJSONObject(i)
+                        if (storyKeys.contains(storyJson.getString("story_id")) && storyJson.getString("user_id") == userId) {
                             val story = story(
-                                userId = userId,
-                                username = username,
-                                image = profileImage, // Profile picture from Users
-                                storyContent = storyImage, // Story image
-                                videoUrl = videoUrl,
-                                timestamp = timestamp,
+                                userId = storyJson.getString("user_id"),
+                                username = storyJson.getString("username"),
+                                image = storyJson.getString("profile_image"),
+                                storyContent = storyJson.getString("story_content"),
+                                videoUrl = if (storyJson.getBoolean("is_video")) storyJson.getString("story_content") else "",
+                                timestamp = storyJson.getLong("timestamp"),
                                 isUserStory = false,
-                                onlineStatus = false
+                                onlineStatus = storyJson.getString("status") == "online"
                             )
                             stories.add(story)
-
-                            // Update the adapter once all stories are fetched
-                            if (stories.size == storyKeys.size) {
-                                storiesViewPager.adapter = StoryViewAdapter(stories)
-                            }
                         }
-
-                        override fun onCancelled(error: DatabaseError) {
-                            Log.e("ViewStoryActivity", "Error fetching story $key: ${error.message}")
-                            if (stories.size == storyKeys.size) {
-                                storiesViewPager.adapter = StoryViewAdapter(stories)
-                            }
-                        }
-                    })
+                    }
+                    storiesViewPager.adapter = StoryViewAdapter(stories)
+                } else {
+                    Log.e("ViewStoryActivity", "Failed to fetch stories: ${response.optString("message")}")
+                    finish()
                 }
-            }
-
-            override fun onCancelled(error: DatabaseError) {
-                Log.e("ViewStoryActivity", "Error fetching user $userId: ${error.message}")
+            },
+            { error ->
+                Log.e("ViewStoryActivity", "Volley error: ${error.message}")
                 finish()
             }
-        })
+        )
+        requestQueue.add(request)
+
+        /*
+        // Firebase logic for fetching stories
+        stories.clear()
+        storyKeys.forEach { storyId ->
+            db.collection("stories").document(storyId).get()
+                .addOnSuccessListener { document ->
+                    if (document.exists()) {
+                        val storyData = document.data
+                        if (storyData != null && storyData["user_id"] == userId) {
+                            db.collection("users").document(userId).get()
+                                .addOnSuccessListener { userDoc ->
+                                    stories.add(
+                                        story(
+                                            userId = userId,
+                                            username = userDoc.getString("username") ?: "",
+                                            image = userDoc.getString("profile_image") ?: "",
+                                            storyContent = storyData["story_content"] as String,
+                                            videoUrl = if (storyData["is_video"] == true) storyData["story_content"] as String else "",
+                                            timestamp = storyData["timestamp"] as Long,
+                                            isUserStory = false,
+                                            onlineStatus = userDoc.getString("status") == "online"
+                                        )
+                                    )
+                                    storiesViewPager.adapter = StoryViewAdapter(stories)
+                                }
+                        }
+                    }
+                }
+                .addOnFailureListener { e ->
+                    Log.e("ViewStoryActivity", "Error fetching Firebase story: ${e.message}")
+                    finish()
+                }
+        }
+        */
     }
 }
 
@@ -118,20 +142,14 @@ class StoryViewAdapter(private val stories: List<story>) : RecyclerView.Adapter<
     override fun onBindViewHolder(holder: StoryViewHolder, position: Int) {
         val story = stories[position]
 
-        if (story.storyContent.isNotEmpty()) {
+        if (story.storyContent.isNotEmpty() && !story.videoUrl.isNotEmpty()) {
             holder.storyImage.visibility = View.VISIBLE
             holder.storyVideo.visibility = View.GONE
             try {
-                val storageRef = FirebaseStorage.getInstance().getReferenceFromUrl(story.storyContent)
-                val tempFile = File.createTempFile("story", "jpg")
-                storageRef.getFile(tempFile).addOnSuccessListener {
-                    val bitmap = BitmapFactory.decodeFile(tempFile.absolutePath)
-                    holder.storyImage.setImageBitmap(bitmap)
-                    Log.d("StoryViewAdapter", "Loaded story image: ${story.storyContent}")
-                }.addOnFailureListener {
-                    holder.storyImage.setImageResource(R.drawable.profile_placeholder)
-                    Log.e("StoryViewAdapter", "Failed to load story image: ${it.message}")
-                }
+                val decodedBytes = Base64.decode(story.storyContent, Base64.DEFAULT)
+                val bitmap = BitmapFactory.decodeByteArray(decodedBytes, 0, decodedBytes.size)
+                holder.storyImage.setImageBitmap(bitmap)
+                Log.d("StoryViewAdapter", "Loaded story image")
             } catch (e: Exception) {
                 holder.storyImage.setImageResource(R.drawable.profile_placeholder)
                 Log.e("StoryViewAdapter", "Error loading story image: ${e.message}")
@@ -142,7 +160,7 @@ class StoryViewAdapter(private val stories: List<story>) : RecyclerView.Adapter<
             try {
                 holder.storyVideo.setVideoURI(Uri.parse(story.videoUrl))
                 holder.storyVideo.start()
-                Log.d("StoryViewAdapter", "Playing story video: ${story.videoUrl}")
+                Log.d("StoryViewAdapter", "Playing story video")
             } catch (e: Exception) {
                 Log.e("StoryViewAdapter", "Error playing story video: ${e.message}")
             }
@@ -150,7 +168,7 @@ class StoryViewAdapter(private val stories: List<story>) : RecyclerView.Adapter<
             holder.storyImage.visibility = View.VISIBLE
             holder.storyVideo.visibility = View.GONE
             holder.storyImage.setImageResource(R.drawable.profile_placeholder)
-            Log.w("StoryViewAdapter", "No story content or video for story")
+            Log.w("StoryViewAdapter", "No story content or video")
         }
     }
 

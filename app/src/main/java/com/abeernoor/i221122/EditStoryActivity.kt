@@ -5,28 +5,36 @@ import android.net.Uri
 import android.os.Bundle
 import android.util.Base64
 import android.util.Log
+import android.view.View
 import android.widget.ImageView
 import android.widget.TextView
 import android.widget.Toast
 import android.widget.VideoView
 import androidx.appcompat.app.AppCompatActivity
-import com.google.firebase.auth.FirebaseAuth
-import com.google.firebase.database.FirebaseDatabase
-import com.google.firebase.storage.FirebaseStorage
+import com.android.volley.Request
+import com.android.volley.toolbox.JsonObjectRequest
+import com.android.volley.toolbox.Volley
+import org.json.JSONObject
+import java.io.File
+import java.io.FileOutputStream
+// import com.google.firebase.storage.FirebaseStorage
+// import com.google.firebase.firestore.FirebaseFirestore
 
 class EditStoryActivity : AppCompatActivity() {
 
-    private lateinit var auth: FirebaseAuth
-    private lateinit var database: FirebaseDatabase
-    private lateinit var storage: FirebaseStorage
+    // private val storage = FirebaseStorage.getInstance()
+    // private val db = FirebaseFirestore.getInstance()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_edit_story)
 
-        auth = FirebaseAuth.getInstance()
-        database = FirebaseDatabase.getInstance()
-        storage = FirebaseStorage.getInstance()
+        val sessionManager = SessionManager(this)
+        val currentUserId = sessionManager.getUserId()?.toIntOrNull() ?: run {
+            Toast.makeText(this, "User not logged in", Toast.LENGTH_SHORT).show()
+            finish()
+            return
+        }
 
         val storyPreview = findViewById<ImageView>(R.id.storyPreview)
         val videoPreview = findViewById<VideoView>(R.id.videoPreview)
@@ -37,22 +45,20 @@ class EditStoryActivity : AppCompatActivity() {
         val videoUriString = intent.getStringExtra("videoUri")
 
         if (imageBase64 != null) {
-            // Display image
             try {
                 val decodedBytes = Base64.decode(imageBase64, Base64.DEFAULT)
                 val bitmap = BitmapFactory.decodeByteArray(decodedBytes, 0, decodedBytes.size)
                 storyPreview.setImageBitmap(bitmap)
-                storyPreview.visibility = android.view.View.VISIBLE
-                videoPreview.visibility = android.view.View.GONE
+                storyPreview.visibility = View.VISIBLE
+                videoPreview.visibility = View.GONE
             } catch (e: Exception) {
                 storyPreview.setImageResource(R.drawable.profile_placeholder)
                 Log.e("EditStoryActivity", "Failed to display image", e)
             }
         } else if (videoUriString != null) {
-            // Display video
             val videoUri = Uri.parse(videoUriString)
-            storyPreview.visibility = android.view.View.GONE
-            videoPreview.visibility = android.view.View.VISIBLE
+            storyPreview.visibility = View.GONE
+            videoPreview.visibility = View.VISIBLE
             videoPreview.setVideoURI(videoUri)
             videoPreview.start()
         } else {
@@ -65,58 +71,102 @@ class EditStoryActivity : AppCompatActivity() {
         }
 
         postButton.setOnClickListener {
-            val currentUserId = auth.currentUser?.uid ?: run {
-                Toast.makeText(this, "User not logged in", Toast.LENGTH_SHORT).show()
-                return@setOnClickListener
+            if (imageBase64 != null) {
+                postStory(currentUserId, imageBase64, false)
+            } else if (videoUriString != null) {
+                try {
+                    val videoUri = Uri.parse(videoUriString)
+                    val inputStream = contentResolver.openInputStream(videoUri)
+                    val tempFile = File.createTempFile("story", ".mp4", cacheDir)
+                    val outputStream = FileOutputStream(tempFile)
+                    inputStream?.copyTo(outputStream)
+                    inputStream?.close()
+                    outputStream.close()
+                    val videoBytes = tempFile.readBytes()
+                    val videoBase64 = Base64.encodeToString(videoBytes, Base64.DEFAULT)
+                    postStory(currentUserId, videoBase64, true)
+                } catch (e: Exception) {
+                    Toast.makeText(this, "Failed to process video: ${e.message}", Toast.LENGTH_SHORT).show()
+                    Log.e("EditStoryActivity", "Error processing video", e)
+                }
             }
 
+            /*
+            // Firebase logic for posting story
             if (imageBase64 != null) {
-                // Save image story
-                val storyData = mapOf(
-                    "image" to imageBase64,
-                    "timestamp" to System.currentTimeMillis()
-                )
-                val storyRef = database.getReference("Stories").child(currentUserId).push()
-                storyRef.setValue(storyData)
+                val decodedBytes = Base64.decode(imageBase64, Base64.DEFAULT)
+                val storageRef = storage.reference.child("stories/$currentUserId/${System.currentTimeMillis()}.jpg")
+                storageRef.putBytes(decodedBytes)
                     .addOnSuccessListener {
-                        Toast.makeText(this, "Story posted", Toast.LENGTH_SHORT).show()
-                        finish()
-                    }
-                    .addOnFailureListener { e ->
-                        Toast.makeText(this, "Failed to post story: ${e.message}", Toast.LENGTH_SHORT).show()
-                        Log.e("EditStoryActivity", "Failed to post image story", e)
-                    }
-            } else if (videoUriString != null) {
-                // Upload video to Firebase Storage
-                val videoUri = Uri.parse(videoUriString)
-                val storageRef = storage.reference.child("stories/$currentUserId/${System.currentTimeMillis()}.mp4")
-                storageRef.putFile(videoUri)
-                    .addOnSuccessListener {
-                        storageRef.downloadUrl.addOnSuccessListener { downloadUri ->
-                            val storyData = mapOf(
-                                "videoUrl" to downloadUri.toString(),
+                        storageRef.downloadUrl.addOnSuccessListener { uri ->
+                            val storyData = hashMapOf(
+                                "user_id" to currentUserId.toString(),
+                                "story_content" to uri.toString(),
+                                "is_video" to false,
                                 "timestamp" to System.currentTimeMillis()
                             )
-                            val storyRef = database.getReference("Stories").child(currentUserId).push()
-                            storyRef.setValue(storyData)
+                            db.collection("stories").add(storyData)
                                 .addOnSuccessListener {
                                     Toast.makeText(this, "Story posted", Toast.LENGTH_SHORT).show()
                                     finish()
                                 }
-                                .addOnFailureListener { e ->
-                                    Toast.makeText(this, "Failed to post story: ${e.message}", Toast.LENGTH_SHORT).show()
-                                    Log.e("EditStoryActivity", "Failed to post video story", e)
-                                }
-                        }.addOnFailureListener { e ->
-                            Toast.makeText(this, "Failed to get video URL: ${e.message}", Toast.LENGTH_SHORT).show()
-                            Log.e("EditStoryActivity", "Failed to get video URL", e)
                         }
                     }
                     .addOnFailureListener { e ->
-                        Toast.makeText(this, "Failed to upload video: ${e.message}", Toast.LENGTH_SHORT).show()
-                        Log.e("EditStoryActivity", "Failed to upload video", e)
+                        Toast.makeText(this, "Failed to post story: ${e.message}", Toast.LENGTH_SHORT).show()
+                    }
+            } else if (videoUriString != null) {
+                val videoUri = Uri.parse(videoUriString)
+                val storageRef = storage.reference.child("stories/$currentUserId/${System.currentTimeMillis()}.mp4")
+                storageRef.putFile(videoUri)
+                    .addOnSuccessListener {
+                        storageRef.downloadUrl.addOnSuccessListener { uri ->
+                            val storyData = hashMapOf(
+                                "user_id" to currentUserId.toString(),
+                                "story_content" to uri.toString(),
+                                "is_video" to true,
+                                "timestamp" to System.currentTimeMillis()
+                            )
+                            db.collection("stories").add(storyData)
+                                .addOnSuccessListener {
+                                    Toast.makeText(this, "Story posted", Toast.LENGTH_SHORT).show()
+                                    finish()
+                                }
+                        }
+                    }
+                    .addOnFailureListener { e ->
+                        Toast.makeText(this, "Failed to post story: ${e.message}", Toast.LENGTH_SHORT).show()
                     }
             }
+            */
         }
+    }
+
+    private fun postStory(userId: Int, content: String, isVideo: Boolean) {
+        val requestQueue = Volley.newRequestQueue(this)
+        val url = "http://192.168.1.11/ConnectMe/Story/postStory.php"
+        val jsonBody = JSONObject().apply {
+            put("user_id", userId)
+            put("story_content", content)
+            put("is_video", isVideo)
+        }
+
+        val request = JsonObjectRequest(
+            Request.Method.POST, url, jsonBody,
+            { response ->
+                if (response.getBoolean("success")) {
+                    Toast.makeText(this, "Story posted", Toast.LENGTH_SHORT).show()
+                    finish()
+                } else {
+                    Toast.makeText(this, "Failed to post story: ${response.optString("message")}", Toast.LENGTH_SHORT).show()
+                    Log.e("EditStoryActivity", "Failed to post story: ${response.optString("message")}")
+                }
+            },
+            { error ->
+                Toast.makeText(this, "Error posting story: ${error.message}", Toast.LENGTH_SHORT).show()
+                Log.e("EditStoryActivity", "Volley error: ${error.message}")
+            }
+        )
+        requestQueue.add(request)
     }
 }
