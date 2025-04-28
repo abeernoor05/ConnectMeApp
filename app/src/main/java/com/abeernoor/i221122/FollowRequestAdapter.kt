@@ -1,5 +1,7 @@
 package com.abeernoor.i221122
 
+import android.graphics.BitmapFactory
+import android.util.Base64
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -8,41 +10,46 @@ import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
 
 class FollowRequestAdapter(
-    private val requestList: MutableList<FollowRequest>,
-    private val onRequestAction: (FollowRequest, Boolean) -> Unit
+    private val requests: MutableList<FollowRequest>,
+    private val onAction: (FollowRequest, Boolean) -> Unit
 ) : RecyclerView.Adapter<FollowRequestAdapter.ViewHolder>() {
 
     class ViewHolder(view: View) : RecyclerView.ViewHolder(view) {
+        val usernameText: TextView = view.findViewById(R.id.requestUserName)
         val profileImage: ImageView = view.findViewById(R.id.profileImage)
-        val userName: TextView = view.findViewById(R.id.requestUserName)
         val acceptButton: ImageView = view.findViewById(R.id.acceptRequest)
         val rejectButton: ImageView = view.findViewById(R.id.rejectRequest)
     }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
-        val view = LayoutInflater.from(parent.context).inflate(R.layout.follow_request_item, parent, false)
+        val view = LayoutInflater.from(parent.context)
+            .inflate(R.layout.follow_request_item, parent, false)
         return ViewHolder(view)
     }
 
     override fun onBindViewHolder(holder: ViewHolder, position: Int) {
-        val request = requestList[position]
-        holder.userName.text = request.username
+        val request = requests[position]
+        holder.usernameText.text = request.username
 
-        // Placeholder image (fetch from database if needed)
-        holder.profileImage.setImageResource(R.drawable.profile_placeholder)
-
-        holder.acceptButton.setOnClickListener {
-            onRequestAction(request, true)
-            requestList.removeAt(position)
-            notifyItemRemoved(position)
+        if (request.profileImage.isNotEmpty()) {
+            try {
+                val decodedBytes = Base64.decode(request.profileImage, Base64.DEFAULT)
+                val bitmap = BitmapFactory.decodeByteArray(decodedBytes, 0, decodedBytes.size)
+                holder.profileImage.setImageBitmap(bitmap)
+            } catch (e: Exception) {
+                holder.profileImage.setImageResource(R.drawable.profile_placeholder)
+            }
+        } else {
+            holder.profileImage.setImageResource(R.drawable.profile_placeholder)
         }
 
+        holder.acceptButton.setOnClickListener {
+            onAction(request, true)
+        }
         holder.rejectButton.setOnClickListener {
-            onRequestAction(request, false)
-            requestList.removeAt(position)
-            notifyItemRemoved(position)
+            onAction(request, false)
         }
     }
 
-    override fun getItemCount(): Int = requestList.size
+    override fun getItemCount(): Int = requests.size
 }
