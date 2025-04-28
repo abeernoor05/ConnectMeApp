@@ -49,8 +49,10 @@
     <ImageView
         android:id="@+id/postImage"
         android:layout_width="match_parent"
-        android:layout_height="300dp"
-        android:scaleType="centerCrop"
+        android:layout_height="wrap_content"
+        android:maxHeight="500dp"
+        android:adjustViewBounds="true"
+        android:scaleType="fitCenter"
         android:src="@drawable/post_placeholder" />
 
     <LinearLayout
@@ -95,7 +97,7 @@
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:layout_marginLeft="200dp"
+            android:layout_marginStart="200dp"
             android:gravity="end">
 
             <ImageView

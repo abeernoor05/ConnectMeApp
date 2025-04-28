@@ -8,7 +8,6 @@ import android.graphics.BitmapFactory
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
-import android.util.Base64
 import android.util.Log
 import android.widget.ImageView
 import android.widget.TextView
@@ -18,41 +17,53 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.RecyclerView
-import java.io.ByteArrayOutputStream
+import java.io.IOException
 
 class PostActivity : AppCompatActivity() {
 
+    private var selectedImageUri: Uri? = null
     private var selectedImageBitmap: Bitmap? = null
+    private val TAG = "PostActivity"
 
     private val requestPermissionLauncher = registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { permissions ->
         if (permissions.all { it.value }) {
             launchImagePicker()
         } else {
-            Toast.makeText(this, "Permission denied. Cannot access gallery.", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "Permission denied. Cannot access gallery.", Toast.LENGTH_LONG).show()
+            Log.e(TAG, "Permissions denied: $permissions")
         }
     }
 
     private val imagePicker = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        Log.d(TAG, "ImagePicker result: ${result.resultCode}, data: ${result.data}")
         if (result.resultCode == RESULT_OK) {
             val uri = result.data?.data
+            Log.d(TAG, "Selected URI: $uri")
             uri?.let {
-                Log.d("PostActivity", "Selected URI: $uri")
+                selectedImageUri = uri
                 selectedImageBitmap = uriToBitmap(uri)
                 selectedImageBitmap?.let { bitmap ->
                     val selectedImage = findViewById<ImageView>(R.id.selectedImage)
                     selectedImage.setImageBitmap(bitmap)
+                    Log.d(TAG, "Image set successfully")
                 } ?: run {
-                    Toast.makeText(this, "Failed to load image", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(this, "Failed to load image", Toast.LENGTH_LONG).show()
+                    Log.e(TAG, "Failed to load bitmap from URI")
                 }
             } ?: run {
-                Toast.makeText(this, "No image selected", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, "No image selected", Toast.LENGTH_LONG).show()
+                Log.e(TAG, "No URI provided")
             }
+        } else {
+            Toast.makeText(this, "Image selection cancelled", Toast.LENGTH_LONG).show()
+            Log.e(TAG, "Image picker failed with result code: ${result.resultCode}")
         }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_post)
+        Log.d(TAG, "onCreate called")
 
         val images = listOf(
             R.drawable.post1, R.drawable.post2, R.drawable.post3, R.drawable.post4,
@@ -66,26 +77,48 @@ class PostActivity : AppCompatActivity() {
 
         val closeButton = findViewById<ImageView>(R.id.close)
         val nextButton = findViewById<TextView>(R.id.btnNext)
-        val iconExtra1 = findViewById<ImageView>(R.id.iconExtra1) // Camera icon for gallery
+        val iconExtra1 = findViewById<ImageView>(R.id.iconExtra1)
 
         iconExtra1.setOnClickListener {
+            Log.d(TAG, "Gallery icon clicked")
             checkPermissionsAndLaunchPicker()
         }
 
         closeButton.setOnClickListener {
+            Log.d(TAG, "Close button clicked")
             finish()
         }
 
         nextButton.setOnClickListener {
-            if (selectedImageBitmap != null) {
-                val base64Image = bitmapToBase64(selectedImageBitmap!!)
-                val intent = Intent(this, NextActivity::class.java)
-                intent.putExtra("image", base64Image)
-                startActivity(intent)
+            Log.d(TAG, "Next button clicked, selectedImageUri: $selectedImageUri, selectedImageBitmap: $selectedImageBitmap")
+            if (selectedImageUri != null && selectedImageBitmap != null) {
+                try {
+                    val intent = Intent(this, NextActivity::class.java)
+                    intent.putExtra("image_uri", selectedImageUri.toString())
+                    startActivity(intent)
+                    Log.d(TAG, "Intent started for NextActivity with URI: $selectedImageUri")
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error starting NextActivity: ${e.message}", e)
+                    Toast.makeText(this, "Error navigating to next screen: ${e.message}", Toast.LENGTH_LONG).show()
+                }
             } else {
-                Toast.makeText(this, "Please select an image", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, "Please select an image", Toast.LENGTH_LONG).show()
+                Log.e(TAG, "No image selected")
             }
         }
+    }
+
+    override fun onPause() {
+        super.onPause()
+        Log.d(TAG, "onPause called")
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        Log.d(TAG, "onDestroy called")
+        // Recycle bitmap to free memory
+        selectedImageBitmap?.recycle()
+        selectedImageBitmap = null
     }
 
     private fun checkPermissionsAndLaunchPicker() {
@@ -103,24 +136,20 @@ class PostActivity : AppCompatActivity() {
     }
 
     private fun launchImagePicker() {
+        Log.d(TAG, "Launching image picker")
         val intent = Intent(Intent.ACTION_PICK)
         intent.type = "image/*"
         imagePicker.launch(intent)
     }
 
-    private fun bitmapToBase64(bitmap: Bitmap): String {
-        val byteArrayOutputStream = ByteArrayOutputStream()
-        bitmap.compress(Bitmap.CompressFormat.JPEG, 50, byteArrayOutputStream)
-        val byteArray = byteArrayOutputStream.toByteArray()
-        return Base64.encodeToString(byteArray, Base64.DEFAULT)
-    }
-
     private fun uriToBitmap(uri: Uri): Bitmap? {
         return try {
             val inputStream = contentResolver.openInputStream(uri)
-            BitmapFactory.decodeStream(inputStream)
-        } catch (e: Exception) {
-            e.printStackTrace()
+            val bitmap = BitmapFactory.decodeStream(inputStream)
+            inputStream?.close()
+            bitmap
+        } catch (e: IOException) {
+            Log.e(TAG, "Error decoding bitmap: ${e.message}", e)
             null
         }
     }
